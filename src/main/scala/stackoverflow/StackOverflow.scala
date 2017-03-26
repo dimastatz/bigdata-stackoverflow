@@ -56,13 +56,11 @@ class StackOverflow extends Serializable {
   /** K-means parameter: Maximum iterations */
   def kmeansMaxIterations = 120
 
-
   //
   //
   // Parsing utilities:
   //
   //
-
   /** Load postings from the given file */
   def rawPostings(lines: RDD[String]): RDD[Posting] =
     lines.map(line => {
@@ -78,7 +76,13 @@ class StackOverflow extends Serializable {
 
   /** Group the questions and answers together */
   def groupedPostings(postings: RDD[Posting]): RDD[(Int, Iterable[(Posting, Posting)])] = {
-    ???
+    val questions = postings.filter(i => i.postingType == 1).map(i => (i.id, i))
+    val answers = postings.filter(i => i.postingType == 2).map(i => (i.parentId.get, i))
+
+    questions
+      .join(answers)
+      .groupBy(i => i._1)
+      .map(i => (i._1, i._2.map(j => j._2)))
   }
 
 
@@ -97,7 +101,7 @@ class StackOverflow extends Serializable {
       highScore
     }
 
-    ???
+    grouped.map(i => (i._2.head._1, answerHighScore(i._2.map(j => j._2).toArray)))
   }
 
 
@@ -117,7 +121,10 @@ class StackOverflow extends Serializable {
       }
     }
 
-    ???
+    scored
+      .map(i => (firstLangInTag(i._1.tags, langs),i._2))
+      .filter(i => i._1.nonEmpty)
+      .map(i => (i._1.get, i._2))
   }
 
 
@@ -271,6 +278,8 @@ class StackOverflow extends Serializable {
   def clusterResults(means: Array[(Int, Int)], vectors: RDD[(Int, Int)]): Array[(String, Double, Int, Int)] = {
     val closest = vectors.map(p => (findClosest(p, means), p))
     val closestGrouped = closest.groupByKey()
+
+    val temp = closestGrouped.collect()
 
     val median = closestGrouped.mapValues { vs =>
       val langLabel: String   = ??? // most common language in the cluster
